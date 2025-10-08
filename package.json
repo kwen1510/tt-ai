@@ -1,6 +1,6 @@
 {
   "name": "tt-ai",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "form-data": "^4.0.0",
-    "groq-sdk": "^0.2.1",
+    "groq-sdk": "^0.4.0",
     "multer": "^1.4.5-lts.1"
   }
 }
