@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>🧠 Timetable AI — Local Client</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg,#0b1020 0%,#0f172a 50%,#0b1222 100%);
+      color: #e5e7eb;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+    }
+    textarea, input {
+      background-color: #0b1020;
+      border: 1px solid #1e293b;
+      color: #e5e7eb;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      width: 100%;
+      outline: none;
+    }
+    textarea:focus, input:focus {
+      border-color: #60a5fa;
+    }
+    .card {
+      background: rgba(17,24,39,.92);
+      border: 1px solid #1e293b;
+      border-radius: 1rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+      padding: 1.25rem;
+      margin-top: 1.25rem;
+    }
+    button {
+      background-color: #1e3a8a;
+      border: 1px solid #2a4cb8;
+      border-radius: 0.75rem;
+      color: white;
+      padding: 0.6rem 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background-color: #2563eb; }
+    button.secondary {
+      background: #0f172a;
+      border: 1px solid #2a4cb8;
+      color: #60a5fa;
+    }
+    pre {
+      background:#0b1020;
+      border:1px solid #1e293b;
+      border-radius:0.75rem;
+      padding:0.75rem;
+      white-space:pre-wrap;
+      word-break:break-word;
+      overflow-x:auto;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center py-10">
+  <div class="max-w-5xl w-full px-4">
+    <div class="text-center mb-8">
+      <h1 class="text-2xl font-semibold mb-1">🧠 Timetable AI — Local Client</h1>
+      <p class="text-gray-400 text-sm">Query your Google Sheet timetable via natural language</p>
+    </div>
+
+    <div class="card">
+      <label class="block font-semibold text-gray-400 mb-2">Apps Script Endpoint (ends with <code>/exec</code>)</label>
+      <input id="endpoint" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+
+      <label class="block font-semibold text-gray-400 mt-4 mb-2">Your Question</label>
+      <textarea id="question" placeholder="When can Kuang Wen and Gabriel have a meeting on Tuesday?">When can Kuang Wen and Gabriel have a meeting on Tuesday?</textarea>
+
+      <div class="flex flex-wrap gap-2 mt-4">
+        <button onclick="send()">Send to API</button>
+        <button class="secondary" onclick="summarize()">Summarize with Groq</button>
+        <button onclick="startMic()">🎤 Speak</button>
+      </div>
+      <p id="status" class="text-gray-400 text-sm mt-2"></p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="card">
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="font-semibold text-lg">Raw JSON response</h3>
+          <span class="text-xs text-gray-400">from Apps Script</span>
+        </div>
+        <pre id="response">No response yet.</pre>
+      </div>
+
+      <div class="card">
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="font-semibold text-lg">LLM Summary</h3>
+          <span class="text-xs text-gray-400">from Groq</span>
+        </div>
+        <pre id="summary">No summary yet.</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="font-semibold text-lg mb-2">Teacher List</h3>
+      <p class="text-gray-400 text-sm mb-2">Store teachers (one per line). This is kept locally in your browser.</p>
+      <textarea id="teachers" placeholder="One teacher per line"></textarea>
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button onclick="saveTeachers()">Save List</button>
+        <button class="secondary" onclick="clearTeachers()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const statusEl = document.getElementById('status');
+const responseEl = document.getElementById('response');
+const summaryEl = document.getElementById('summary');
+
+async function send() {
+  const endpoint = document.getElementById('endpoint').value.trim();
+  const question = document.getElementById('question').value.trim();
+  if (!endpoint || !question) { alert('Please enter endpoint and question'); return; }
+  statusEl.textContent = 'Sending…';
+  try {
+    const res = await fetch('/proxy', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ endpoint, password:'password1', mode:'auto', question })
+    });
+    const data = await res.json();
+    responseEl.textContent = JSON.stringify(data, null, 2);
+    statusEl.textContent = data.ok ? '✅ OK' : '⚠️ API returned error';
+  } catch (e) {
+    responseEl.textContent = 'Error: ' + e;
+    statusEl.textContent = '❌ Error';
+  }
+}
+
+async function summarize() {
+  const question = document.getElementById('question').value.trim();
+  let data = {};
+  try { data = JSON.parse(responseEl.textContent); } catch {}
+  const results = Array.isArray(data?.results) ? data.results : [];
+
+  summaryEl.textContent = 'Summarizing…';
+  try {
+    const r = await fetch('/summarize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ question, results })
+    });
+    const j = await r.json();
+    const text = j?.choices?.[0]?.message?.content ||
+                 j?.openai_raw?.choices?.[0]?.message?.content ||
+                 JSON.stringify(j, null, 2);
+    summaryEl.textContent = text;
+  } catch (e) {
+    summaryEl.textContent = 'Error: ' + e;
+  }
+}
+
+// === Teacher list management ===
+const tEl = document.getElementById('teachers');
+function saveTeachers(){
+  localStorage.setItem('teachers', tEl.value.trim());
+  alert('Saved!');
+}
+function clearTeachers(){
+  localStorage.removeItem('teachers');
+  tEl.value = '';
+}
+function loadTeachers(){
+  tEl.value = localStorage.getItem('teachers') || '';
+}
+loadTeachers();
+
+// === microphone ===
+async function startMic(){
+  if (!navigator.mediaDevices) return alert('No mic support');
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const recorder = new MediaRecorder(stream);
+  const chunks = [];
+  recorder.ondataavailable = e => chunks.push(e.data);
+  recorder.onstop = async () => {
+    const blob = new Blob(chunks, { type: 'audio/webm' });
+    const form = new FormData();
+    form.append('audio', blob, 'input.webm');
+    const res = await fetch('/whisper', { method:'POST', body: form });
+    const j = await res.json();
+    if (j.text) {
+      document.getElementById('question').value = j.text;
+      alert('Transcribed!');
+    } else alert('No text found.');
+  };
+  recorder.start();
+  alert('🎙 Recording... will auto-stop in 5s');
+  setTimeout(()=>recorder.stop(), 5000);
+}
+</script>
+</body>
+</html>
