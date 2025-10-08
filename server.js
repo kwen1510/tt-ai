@@ -44,7 +44,7 @@ app.post("/summarize", async (req, res) => {
     const collapsed = Array.isArray(results) ? JSON.stringify(results.slice(0, 5)) : JSON.stringify(results);
 
     const stream = await groq.chat.completions.create({
-      model: "openai/gpt-oss-20b",
+      model: "openai/gpt-oss-120b",
       messages: [
         { role: "system", content: "You are a helpful assistant for timetable queries." },
         { role: "user", content: `Answer ONLY from this JSON.\nQuestion: ${question}\nJSON (collapsed): ${collapsed}` }
