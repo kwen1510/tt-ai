@@ -1,199 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>🧠 Timetable AI — Local Client</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Timetable AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body {
-      background: linear-gradient(135deg,#0b1020 0%,#0f172a 50%,#0b1222 100%);
-      color: #e5e7eb;
+    :root { --glass: rgba(15,23,42,.75); }
+    body{
+      background: radial-gradient(1200px 600px at 20% -10%, #1d2a5b33, transparent 70%),
+                  radial-gradient(1000px 500px at 100% 0%, #0ea5e933, transparent 60%),
+                  linear-gradient(135deg, #0b1020 0%, #0f172a 50%, #0b1222 100%);
+      color:#e5e7eb;
       font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
     }
-    textarea, input {
-      background-color: #0b1020;
-      border: 1px solid #1e293b;
-      color: #e5e7eb;
-      border-radius: 0.5rem;
-      padding: 0.5rem 0.75rem;
-      width: 100%;
-      outline: none;
-    }
-    textarea:focus, input:focus {
-      border-color: #60a5fa;
-    }
-    .card {
-      background: rgba(17,24,39,.92);
-      border: 1px solid #1e293b;
-      border-radius: 1rem;
+    .card{
+      background:var(--glass);
+      border:1px solid rgba(148,163,184,.25);
+      backdrop-filter: blur(8px);
       box-shadow: 0 20px 60px rgba(0,0,0,.35);
-      padding: 1.25rem;
-      margin-top: 1.25rem;
     }
-    button {
-      background-color: #1e3a8a;
-      border: 1px solid #2a4cb8;
-      border-radius: 0.75rem;
-      color: white;
-      padding: 0.6rem 1rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button:hover { background-color: #2563eb; }
-    button.secondary {
-      background: #0f172a;
-      border: 1px solid #2a4cb8;
-      color: #60a5fa;
-    }
-    pre {
-      background:#0b1020;
-      border:1px solid #1e293b;
-      border-radius:0.75rem;
-      padding:0.75rem;
-      white-space:pre-wrap;
-      word-break:break-word;
-      overflow-x:auto;
-    }
+    .ring-sky{ box-shadow: 0 0 0 2px rgba(56,189,248,.6) inset; }
+    .pulse-dot{ box-shadow:0 0 0 0 rgba(34,197,94,.5); animation:pulse 1.6s infinite; }
+    @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 70%{box-shadow:0 0 0 16px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
+    .skeleton{ background: linear-gradient(90deg,#0b1222,#0f172a 50%,#0b1222); background-size: 200% 100%; animation: sk 1.2s linear infinite; }
+    @keyframes sk { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
   </style>
 </head>
+<body class="min-h-screen flex items-center justify-center py-10 px-4">
 
-<body class="min-h-screen flex flex-col items-center py-10">
-  <div class="max-w-5xl w-full px-4">
-    <div class="text-center mb-8">
-      <h1 class="text-2xl font-semibold mb-1">🧠 Timetable AI — Local Client</h1>
-      <p class="text-gray-400 text-sm">Query your Google Sheet timetable via natural language</p>
-    </div>
-
-    <div class="card">
-      <label class="block font-semibold text-gray-400 mb-2">Apps Script Endpoint (ends with <code>/exec</code>)</label>
-      <input id="endpoint" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
-
-      <label class="block font-semibold text-gray-400 mt-4 mb-2">Your Question</label>
-      <textarea id="question" placeholder="When can Kuang Wen and Gabriel have a meeting on Tuesday?">When can Kuang Wen and Gabriel have a meeting on Tuesday?</textarea>
-
-      <div class="flex flex-wrap gap-2 mt-4">
-        <button onclick="send()">Send to API</button>
-        <button class="secondary" onclick="summarize()">Summarize with Groq</button>
-        <button onclick="startMic()">🎤 Speak</button>
+  <main class="w-full max-w-3xl space-y-5">
+    <!-- Header -->
+    <header class="flex items-center justify-between">
+      <h1 class="text-2xl font-semibold tracking-tight">🧠 Timetable AI</h1>
+      <div class="flex items-center gap-2 text-sm text-slate-400">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 pulse-dot"></span>
+        Ready
       </div>
-      <p id="status" class="text-gray-400 text-sm mt-2"></p>
-    </div>
+    </header>
 
-    <div class="grid md:grid-cols-2 gap-4">
-      <div class="card">
-        <div class="flex justify-between items-center mb-2">
-          <h3 class="font-semibold text-lg">Raw JSON response</h3>
-          <span class="text-xs text-gray-400">from Apps Script</span>
+    <!-- Composer -->
+    <section class="card rounded-2xl p-4">
+      <label for="q" class="block text-sm text-slate-400 mb-2">Ask a question</label>
+
+      <div class="relative">
+        <input id="q" autocomplete="off"
+               placeholder="e.g. When are Kuang Wen’s free periods tomorrow?"
+               class="w-full rounded-2xl bg-slate-950/60 border border-slate-700/60 px-4 pr-24 py-3.5 text-base
+                      focus:outline-none focus:ring-2 focus:ring-sky-400/70 placeholder:text-slate-500" />
+
+        <!-- Mic (inside input) -->
+        <button id="micBtn" type="button"
+                class="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-2
+                       rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/60 text-slate-200
+                       hover:bg-slate-700 transition-all"
+                aria-label="Record with microphone" title="Record with microphone">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+               class="w-4 h-4"><path fill="currentColor"
+               d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3m5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 14 0zM11 19v2h2v-2z"/></svg>
+          <span class="text-sm">Mic</span>
+        </button>
+      </div>
+
+      <div class="mt-3 flex items-center gap-2">
+        <button id="askBtn" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl
+                                   bg-indigo-600 hover:bg-indigo-500 transition-all font-semibold">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+               class="w-5 h-5"><path fill="currentColor"
+               d="M4 12h11.17l-4.58-4.59L12 6l6 6l-6 6l-1.41-1.41L15.17 13H4z"/></svg>
+          Ask
+        </button>
+        <p id="status" class="text-sm text-slate-400"></p>
+      </div>
+    </section>
+
+    <!-- Answer -->
+    <section class="card rounded-2xl p-5">
+      <h2 class="text-lg font-semibold mb-2">Answer</h2>
+      <div id="answer" class="min-h-[96px] text-base leading-7 text-slate-100">
+        <span class="text-slate-400">Ask something to get started.</span>
+      </div>
+    </section>
+
+    <!-- Raw JSON (hidden by default) -->
+    <details class="card rounded-2xl p-4 select-text" id="rawDetails">
+      <summary class="cursor-pointer list-none flex items-center justify-between">
+        <span class="font-semibold">Raw JSON (collapsed)</span>
+        <span id="rawMeta" class="text-xs text-slate-400"></span>
+      </summary>
+      <div class="mt-3">
+        <div class="flex items-center gap-2 mb-2">
+          <button id="copyBtn" class="px-3 py-1.5 rounded-lg text-sm bg-slate-800 border border-slate-700 hover:bg-slate-700">Copy JSON</button>
+          <span id="copyTip" class="text-xs text-slate-400"></span>
         </div>
-        <pre id="response">No response yet.</pre>
+        <pre id="raw" class="max-h-80 overflow-auto rounded-xl p-3 bg-slate-950/70 border border-slate-800 text-[13px]"></pre>
       </div>
+    </details>
+  </main>
 
-      <div class="card">
-        <div class="flex justify-between items-center mb-2">
-          <h3 class="font-semibold text-lg">LLM Summary</h3>
-          <span class="text-xs text-gray-400">from Groq</span>
-        </div>
-        <pre id="summary">No summary yet.</pre>
-      </div>
-    </div>
+  <script>
+    const qEl = document.getElementById('q');
+    const askBtn = document.getElementById('askBtn');
+    const micBtn = document.getElementById('micBtn');
+    const statusEl = document.getElementById('status');
+    const ansEl = document.getElementById('answer');
+    const rawEl = document.getElementById('raw');
+    const rawMeta = document.getElementById('rawMeta');
+    const copyBtn = document.getElementById('copyBtn');
+    const copyTip = document.getElementById('copyTip');
+    const rawDetails = document.getElementById('rawDetails');
 
-    <div class="card">
-      <h3 class="font-semibold text-lg mb-2">Teacher List</h3>
-      <p class="text-gray-400 text-sm mb-2">Store teachers (one per line). This is kept locally in your browser.</p>
-      <textarea id="teachers" placeholder="One teacher per line"></textarea>
-      <div class="flex flex-wrap gap-2 mt-3">
-        <button onclick="saveTeachers()">Save List</button>
-        <button class="secondary" onclick="clearTeachers()">Clear</button>
-      </div>
-    </div>
-  </div>
+    let recording = false, mediaStream = null, mediaRecorder = null, recordTimer = null;
 
-<script>
-const statusEl = document.getElementById('status');
-const responseEl = document.getElementById('response');
-const summaryEl = document.getElementById('summary');
+    function clearOutput() {
+      ansEl.innerHTML = '<div class="h-6 rounded skeleton"></div><div class="h-6 rounded skeleton mt-2 w-3/4"></div>';
+      rawEl.textContent = '';
+      rawMeta.textContent = '';
+      rawDetails.open = false;
+    }
 
-async function send() {
-  const endpoint = document.getElementById('endpoint').value.trim();
-  const question = document.getElementById('question').value.trim();
-  if (!endpoint || !question) { alert('Please enter endpoint and question'); return; }
-  statusEl.textContent = 'Sending…';
-  try {
-    const res = await fetch('/proxy', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ endpoint, password:'password1', mode:'auto', question })
+    async function ask() {
+      const question = qEl.value.trim();
+      if (!question) return;
+
+      // UI state
+      clearOutput();
+      setStatus('Sending…');
+      askBtn.disabled = true;
+      micBtn.disabled = true;
+
+      try {
+        // 1) Apps Script (backend holds password/keys)
+        const apiRes = await fetch('/proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, mode: 'auto' })
+        });
+        const data = await apiRes.json();
+
+        // Populate hidden JSON (collapsed)
+        rawEl.textContent = JSON.stringify(data, null, 2);
+        const count = Array.isArray(data?.results) ? data.results.length : 0;
+        rawMeta.textContent = `items: ${count}`;
+
+        // 2) Summarize via Groq
+        setStatus('Summarizing…');
+        const results = Array.isArray(data?.results) ? data.results : [];
+        const sumRes = await fetch('/summarize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question, results })
+        });
+        const j = await sumRes.json();
+        const summary = j?.choices?.[0]?.message?.content
+                     || j?.openai_raw?.choices?.[0]?.message?.content
+                     || 'No summary produced.';
+
+        ansEl.textContent = summary;
+        setStatus('Done');
+      } catch (err) {
+        ansEl.innerHTML = '<span class="text-red-400">Something went wrong.</span>';
+        setStatus('Error');
+        console.error(err);
+      } finally {
+        askBtn.disabled = false;
+        micBtn.disabled = false;
+      }
+    }
+
+    function setStatus(t){ statusEl.textContent = t || ''; }
+
+    // ENTER to ask
+    qEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); }
     });
-    const data = await res.json();
-    responseEl.textContent = JSON.stringify(data, null, 2);
-    statusEl.textContent = data.ok ? '✅ OK' : '⚠️ API returned error';
-  } catch (e) {
-    responseEl.textContent = 'Error: ' + e;
-    statusEl.textContent = '❌ Error';
-  }
-}
+    askBtn.addEventListener('click', ask);
 
-async function summarize() {
-  const question = document.getElementById('question').value.trim();
-  let data = {};
-  try { data = JSON.parse(responseEl.textContent); } catch {}
-  const results = Array.isArray(data?.results) ? data.results : [];
-
-  summaryEl.textContent = 'Summarizing…';
-  try {
-    const r = await fetch('/summarize', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ question, results })
+    // Copy JSON
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(rawEl.textContent || '');
+        copyTip.textContent = 'Copied!';
+        setTimeout(() => copyTip.textContent = '', 1200);
+      } catch {}
     });
-    const j = await r.json();
-    const text = j?.choices?.[0]?.message?.content ||
-                 j?.openai_raw?.choices?.[0]?.message?.content ||
-                 JSON.stringify(j, null, 2);
-    summaryEl.textContent = text;
-  } catch (e) {
-    summaryEl.textContent = 'Error: ' + e;
-  }
-}
 
-// === Teacher list management ===
-const tEl = document.getElementById('teachers');
-function saveTeachers(){
-  localStorage.setItem('teachers', tEl.value.trim());
-  alert('Saved!');
-}
-function clearTeachers(){
-  localStorage.removeItem('teachers');
-  tEl.value = '';
-}
-function loadTeachers(){
-  tEl.value = localStorage.getItem('teachers') || '';
-}
-loadTeachers();
+    // Mic handling (records ~6s; clears output when starting)
+    micBtn.addEventListener('click', async () => {
+      try {
+        if (!recording) {
+          // start
+          clearOutput();                   // clear when recording a new question
+          setStatus('Recording…');
+          micBtn.classList.add('ring-sky');
 
-// === microphone ===
-async function startMic(){
-  if (!navigator.mediaDevices) return alert('No mic support');
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const recorder = new MediaRecorder(stream);
-  const chunks = [];
-  recorder.ondataavailable = e => chunks.push(e.data);
-  recorder.onstop = async () => {
-    const blob = new Blob(chunks, { type: 'audio/webm' });
-    const form = new FormData();
-    form.append('audio', blob, 'input.webm');
-    const res = await fetch('/whisper', { method:'POST', body: form });
-    const j = await res.json();
-    if (j.text) {
-      document.getElementById('question').value = j.text;
-      alert('Transcribed!');
-    } else alert('No text found.');
-  };
-  recorder.start();
-  alert('🎙 Recording... will auto-stop in 5s');
-  setTimeout(()=>recorder.stop(), 5000);
-}
-</script>
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(mediaStream);
+          const chunks = [];
+          mediaRecorder.ondataavailable = e => chunks.push(e.data);
+          mediaRecorder.onstop = async () => {
+            // stop UI
+            recording = false;
+            setStatus('Transcribing…');
+            micBtn.classList.remove('ring-sky');
+
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const form = new FormData();
+            form.append('audio', blob, 'question.webm');
+
+            try {
+              const r = await fetch('/whisper', { method: 'POST', body: form });
+              const j = await r.json();
+              if (j?.text) qEl.value = j.text;
+              setStatus('Ready');
+            } catch (e) {
+              console.error(e);
+              setStatus('Transcription error');
+            } finally {
+              mediaStream.getTracks().forEach(t => t.stop());
+            }
+          };
+          mediaRecorder.start();
+          recording = true;
+          // auto-stop after 6s
+          recordTimer = setTimeout(() => { if (recording) mediaRecorder.stop(); }, 6000);
+        } else {
+          // manual stop
+          clearTimeout(recordTimer);
+          mediaRecorder.stop();
+        }
+      } catch (e) {
+        console.error(e);
+        setStatus('Mic unavailable');
+      }
+    });
+  </script>
 </body>
 </html>
