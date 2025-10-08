@@ -2,9 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Timetable AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Markdown + Sanitizer -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
   <style>
     :root { --glass: rgba(15,23,42,.75); }
     body{
@@ -25,31 +28,42 @@
     @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 70%{box-shadow:0 0 0 16px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
     .skeleton{ background: linear-gradient(90deg,#0b1222,#0f172a 50%,#0b1222); background-size: 200% 100%; animation: sk 1.2s linear infinite; }
     @keyframes sk { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+    /* Markdown formatting */
+    .markdown-body h1,.markdown-body h2,.markdown-body h3{font-weight:600;margin-top:1rem}
+    .markdown-body p,.markdown-body li{margin:0.3rem 0}
+    .markdown-body table{border-collapse:collapse;width:100%;margin:0.5rem 0;font-size:0.95rem}
+    .markdown-body th,.markdown-body td{border:1px solid #334155;padding:4px 6px;text-align:left}
+    .markdown-body code{background:#0f172a;border-radius:4px;padding:2px 4px;font-family:monospace}
+    .markdown-body strong{color:#fbbf24}
+    .markdown-body em{color:#a5b4fc}
   </style>
 </head>
-<body class="min-h-screen flex items-center justify-center py-10 px-4">
+<body class="min-h-screen flex items-center justify-center py-6 px-3 sm:py-10 sm:px-4">
 
-  <main class="w-full max-w-3xl space-y-5">
+  <main class="w-full max-w-3xl space-y-4 sm:space-y-5">
     <!-- Header -->
-    <header class="flex items-center justify-between">
-      <h1 class="text-2xl font-semibold tracking-tight">🧠 Timetable AI</h1>
-      <div class="flex items-center gap-2 text-sm text-slate-400">
+    <header class="flex items-center justify-between px-1">
+      <h1 class="text-xl sm:text-2xl font-semibold tracking-tight flex items-center gap-2">
+        <span class="text-pink-400 text-2xl sm:text-3xl"></span> Timetable AI
+      </h1>
+      <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-400">
         <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 pulse-dot"></span>
         Ready
       </div>
     </header>
 
     <!-- Composer -->
-    <section class="card rounded-2xl p-4">
-      <label for="q" class="block text-sm text-slate-400 mb-2">Ask a question</label>
+    <section class="card rounded-2xl p-3 sm:p-4">
+      <label for="q" class="block text-xs sm:text-sm text-slate-400 mb-2">Ask a question</label>
 
       <div class="relative">
         <input id="q" autocomplete="off"
                placeholder="e.g. When are Kuang Wen’s free periods tomorrow?"
-               class="w-full rounded-2xl bg-slate-950/60 border border-slate-700/60 px-4 pr-24 py-3.5 text-base
+               class="w-full rounded-2xl bg-slate-950/60 border border-slate-700/60 pl-4 pr-24 py-3 text-base
                       focus:outline-none focus:ring-2 focus:ring-sky-400/70 placeholder:text-slate-500" />
 
-        <!-- Mic (inside input) -->
+        <!-- Mic button (fills the input after STT) -->
         <button id="micBtn" type="button"
                 class="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-2
                        rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/60 text-slate-200
@@ -75,15 +89,15 @@
     </section>
 
     <!-- Answer -->
-    <section class="card rounded-2xl p-5">
+    <section class="card rounded-2xl p-4 sm:p-5">
       <h2 class="text-lg font-semibold mb-2">Answer</h2>
-      <div id="answer" class="min-h-[96px] text-base leading-7 text-slate-100">
+      <div id="answer" class="markdown-body min-h-[90px] text-base leading-7 text-slate-100">
         <span class="text-slate-400">Ask something to get started.</span>
       </div>
     </section>
 
-    <!-- Raw JSON (hidden by default) -->
-    <details class="card rounded-2xl p-4 select-text" id="rawDetails">
+    <!-- Raw JSON dropdown -->
+    <details class="card rounded-2xl p-3 sm:p-4 select-text" id="rawDetails">
       <summary class="cursor-pointer list-none flex items-center justify-between">
         <span class="font-semibold">Raw JSON (collapsed)</span>
         <span id="rawMeta" class="text-xs text-slate-400"></span>
@@ -94,6 +108,24 @@
           <span id="copyTip" class="text-xs text-slate-400"></span>
         </div>
         <pre id="raw" class="max-h-80 overflow-auto rounded-xl p-3 bg-slate-950/70 border border-slate-800 text-[13px]"></pre>
+      </div>
+    </details>
+
+    <!-- Names (localStorage) -->
+    <details class="card rounded-2xl p-3 sm:p-4">
+      <summary class="cursor-pointer list-none flex items-center justify-between">
+        <span class="font-semibold">Names (saved locally)</span>
+        <span class="text-xs text-slate-400">one per line</span>
+      </summary>
+      <div class="mt-3">
+        <textarea id="namesBox" rows="6"
+                  placeholder="Kuang Wen&#10;Gabriel&#10;Adrian"
+                  class="w-full rounded-xl bg-slate-950/60 border border-slate-700/60 p-3
+                         focus:outline-none focus:ring-2 focus:ring-sky-400/70 placeholder:text-slate-500"></textarea>
+        <div class="flex gap-2 mt-2">
+          <button id="saveNames" class="px-3 py-1.5 rounded-lg text-sm bg-slate-800 border border-slate-700 hover:bg-slate-700">Save</button>
+          <button id="clearNames" class="px-3 py-1.5 rounded-lg text-sm bg-slate-800 border border-slate-700 hover:bg-slate-700">Clear</button>
+        </div>
       </div>
     </details>
   </main>
@@ -110,6 +142,10 @@
     const copyTip = document.getElementById('copyTip');
     const rawDetails = document.getElementById('rawDetails');
 
+    const namesBox = document.getElementById('namesBox');
+    const saveNames = document.getElementById('saveNames');
+    const clearNames = document.getElementById('clearNames');
+
     let recording = false, mediaStream = null, mediaRecorder = null, recordTimer = null;
 
     function clearOutput() {
@@ -122,15 +158,12 @@
     async function ask() {
       const question = qEl.value.trim();
       if (!question) return;
-
-      // UI state
       clearOutput();
       setStatus('Sending…');
       askBtn.disabled = true;
       micBtn.disabled = true;
 
       try {
-        // 1) Apps Script (backend holds password/keys)
         const apiRes = await fetch('/proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -138,12 +171,10 @@
         });
         const data = await apiRes.json();
 
-        // Populate hidden JSON (collapsed)
         rawEl.textContent = JSON.stringify(data, null, 2);
         const count = Array.isArray(data?.results) ? data.results.length : 0;
         rawMeta.textContent = `items: ${count}`;
 
-        // 2) Summarize via Groq
         setStatus('Summarizing…');
         const results = Array.isArray(data?.results) ? data.results : [];
         const sumRes = await fetch('/summarize', {
@@ -156,7 +187,9 @@
                      || j?.openai_raw?.choices?.[0]?.message?.content
                      || 'No summary produced.';
 
-        ansEl.textContent = summary;
+        const html = DOMPurify.sanitize(marked.parse(summary || ''));
+        ansEl.innerHTML = html;
+
         setStatus('Done');
       } catch (err) {
         ansEl.innerHTML = '<span class="text-red-400">Something went wrong.</span>';
@@ -177,7 +210,7 @@
     askBtn.addEventListener('click', ask);
 
     // Copy JSON
-    copyBtn.addEventListener('click', async () => {
+    copyBtn?.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(rawEl.textContent || '');
         copyTip.textContent = 'Copied!';
@@ -185,24 +218,27 @@
       } catch {}
     });
 
-    // Mic handling (records ~6s; clears output when starting)
+    // --- Mic handling (fills input with STT result) ---
     micBtn.addEventListener('click', async () => {
       try {
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+          return alert('Microphone recording not supported on this device/browser.');
+        }
+
         if (!recording) {
-          // start
-          clearOutput();                   // clear when recording a new question
-          setStatus('Recording…');
+          // start recording
+          clearOutput();
+          setStatus('Recording… Tap again to stop');
           micBtn.classList.add('ring-sky');
 
           mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(mediaStream);
+          mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' });
           const chunks = [];
-          mediaRecorder.ondataavailable = e => chunks.push(e.data);
+          mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
           mediaRecorder.onstop = async () => {
-            // stop UI
             recording = false;
-            setStatus('Transcribing…');
             micBtn.classList.remove('ring-sky');
+            setStatus('Transcribing…');
 
             const blob = new Blob(chunks, { type: 'audio/webm' });
             const form = new FormData();
@@ -211,7 +247,13 @@
             try {
               const r = await fetch('/whisper', { method: 'POST', body: form });
               const j = await r.json();
-              if (j?.text) qEl.value = j.text;
+              if (j?.text) {
+                qEl.value = j.text;         // ✅ fill the box
+                qEl.focus();
+                qEl.setSelectionRange(qEl.value.length, qEl.value.length);
+              } else {
+                alert('No text returned from transcription.');
+              }
               setStatus('Ready');
             } catch (e) {
               console.error(e);
@@ -222,10 +264,10 @@
           };
           mediaRecorder.start();
           recording = true;
-          // auto-stop after 6s
+          // auto-stop after 6s (mobile-friendly)
           recordTimer = setTimeout(() => { if (recording) mediaRecorder.stop(); }, 6000);
         } else {
-          // manual stop
+          // stop recording
           clearTimeout(recordTimer);
           mediaRecorder.stop();
         }
@@ -234,6 +276,17 @@
         setStatus('Mic unavailable');
       }
     });
+
+    // --- Names (localStorage) ---
+    function loadNames() {
+      namesBox.value = localStorage.getItem('ttai:names') || '';
+    }
+    function saveNamesToLS() {
+      localStorage.setItem('ttai:names', namesBox.value.trim());
+    }
+    saveNames.addEventListener('click', () => { saveNamesToLS(); alert('Saved'); });
+    clearNames.addEventListener('click', () => { localStorage.removeItem('ttai:names'); namesBox.value=''; });
+    loadNames();
   </script>
 </body>
 </html>
