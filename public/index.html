@@ -87,4 +87,236 @@
       </summary>
       <div class="mt-3">
         <div class="flex items-center gap-2 mb-2">
-          <button id="copyBtn" class="px-3 py-1.5 rounded-lg text-sm bg-slate-800 border border-slat
+          <button id="copyBtn" class="px-3 py-1.5 rounded-lg text-sm bg-slate-800 border border-slate-700 hover:bg-slate-700">Copy JSON</button>
+          <span id="copyTip" class="text-xs text-slate-400"></span>
+        </div>
+        <pre id="raw" class="max-h-80 overflow-auto rounded-xl p-3 bg-slate-950/70 border border-slate-800 text-[13px]"></pre>
+      </div>
+    </details>
+  </main>
+
+  <!-- Names Modal -->
+  <div id="namesModal" class="modal-mask">
+    <div class="modal rounded-2xl">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-semibold">Manage Names</h3>
+        <button id="closeNames"
+                class="px-3 py-1.5 text-sm rounded-lg bg-slate-800/80 border border-slate-700 hover:bg-slate-700">
+          Close
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <!-- Lists column -->
+        <div class="sm:col-span-1">
+          <label class="block text-sm text-slate-400 mb-1">Saved lists</label>
+          <select id="listsSelect" size="8"
+                  class="w-full rounded-lg bg-slate-950/60 border border-slate-700/60 p-2 text-sm"></select>
+          <div class="flex gap-2 mt-2">
+            <button id="newList" class="px-3 py-1.5 rounded-lg text-sm bg-slate-800 border border-slate-700 hover:bg-slate-700">New</button>
+            <button id="loadList" class="px-3 py-1.5 rounded-lg text-sm bg-slate-800 border border-slate-700 hover:bg-slate-700">Load</button>
+            <button id="deleteList" class="px-3 py-1.5 rounded-lg text-sm bg-slate-800 border border-slate-700 hover:bg-slate-700">Delete</button>
+          </div>
+        </div>
+
+        <!-- Editor column -->
+        <div class="sm:col-span-2">
+          <label class="block text-sm text-slate-400 mb-1">List name</label>
+          <input id="listNameInput" class="w-full rounded-lg bg-slate-950/60 border border-slate-700/60 p-2 mb-2" placeholder="e.g. Teachers A" />
+          <label class="block text-sm text-slate-400 mb-1">Names (one per line)</label>
+          <textarea id="namesEditor" rows="10"
+                    class="w-full rounded-lg bg-slate-950/60 border border-slate-700/60 p-3 text-sm"
+                    placeholder="Kuang Wen&#10;Gabriel&#10;Adrian"></textarea>
+          <div class="flex gap-2 mt-2">
+            <button id="saveList" class="px-3 py-1.5 rounded-lg text-sm bg-indigo-600 hover:bg-indigo-500">Save</button>
+            <button id="clearEditor" class="px-3 py-1.5 rounded-lg text-sm bg-slate-800 border border-slate-700 hover:bg-slate-700">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const qEl = document.getElementById('q');
+    const askBtn = document.getElementById('askBtn');
+    const micBtn = document.getElementById('micBtn');
+    const statusEl = document.getElementById('status');
+    const ansEl = document.getElementById('answer');
+    const rawEl = document.getElementById('raw');
+    const rawMeta = document.getElementById('rawMeta');
+    const copyBtn = document.getElementById('copyBtn');
+    const copyTip = document.getElementById('copyTip');
+    const rawDetails = document.getElementById('rawDetails');
+
+    // Modal elements
+    const manageNamesBtn = document.getElementById('manageNamesBtn');
+    const namesModal = document.getElementById('namesModal');
+    const closeNames = document.getElementById('closeNames');
+    const listsSelect = document.getElementById('listsSelect');
+    const listNameInput = document.getElementById('listNameInput');
+    const namesEditor = document.getElementById('namesEditor');
+    const newListBtn = document.getElementById('newList');
+    const loadListBtn = document.getElementById('loadList');
+    const deleteListBtn = document.getElementById('deleteList');
+    const saveListBtn = document.getElementById('saveList');
+    const clearEditorBtn = document.getElementById('clearEditor');
+
+    let recording = false, mediaStream = null, mediaRecorder = null, recordTimer = null;
+
+    function clearOutput() {
+      ansEl.innerHTML = '<div class="h-6 rounded skeleton"></div><div class="h-6 rounded skeleton mt-2 w-3/4"></div>';
+      rawEl.textContent = '';
+      rawMeta.textContent = '';
+      rawDetails.open = false;
+    }
+
+    async function ask() {
+      const question = qEl.value.trim();
+      if (!question) return;
+      clearOutput();
+      setStatus('Sending…');
+      askBtn.disabled = true;
+      micBtn.disabled = true;
+
+      try {
+        const apiRes = await fetch('/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, mode: 'auto' }) });
+        const data = await apiRes.json();
+
+        rawEl.textContent = JSON.stringify(data, null, 2);
+        const count = Array.isArray(data?.results) ? data.results.length : 0;
+        rawMeta.textContent = `items: ${count}`;
+
+        setStatus('Summarizing…');
+        const results = Array.isArray(data?.results) ? data.results : [];
+        const sumRes = await fetch('/summarize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, results }) });
+        const j = await sumRes.json();
+        const summary = j?.choices?.[0]?.message?.content || j?.openai_raw?.choices?.[0]?.message?.content || 'No summary produced.';
+        ansEl.innerHTML = DOMPurify.sanitize(marked.parse(summary || ''));
+        setStatus('Done');
+      } catch (err) {
+        ansEl.innerHTML = '<span class="text-red-400">Something went wrong.</span>';
+        setStatus('Error');
+        console.error(err);
+      } finally {
+        askBtn.disabled = false;
+        micBtn.disabled = false;
+      }
+    }
+
+    function setStatus(t){ statusEl.textContent = t || ''; }
+    qEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); } });
+    askBtn.addEventListener('click', ask);
+
+    copyBtn?.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(rawEl.textContent || ''); copyTip.textContent = 'Copied!'; setTimeout(() => copyTip.textContent = '', 1200); } catch {}
+    });
+
+    // --- Mic (fills input, improved error reporting) ---
+    micBtn.addEventListener('click', async () => {
+      try {
+        if (!navigator.mediaDevices || !window.MediaRecorder) return alert('Microphone recording not supported.');
+        if (!recording) {
+          clearOutput();
+          setStatus('Recording… tap again to stop');
+          micBtn.classList.add('ring-sky');
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' });
+          const chunks = [];
+          mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+          mediaRecorder.onstop = async () => {
+            recording = false;
+            micBtn.classList.remove('ring-sky');
+            setStatus('Transcribing…');
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const form = new FormData();
+            form.append('audio', blob, 'question.webm');
+            try {
+              const r = await fetch('/whisper', { method: 'POST', body: form });
+              const j = await r.json();
+              if (j?.ok === false) {
+                console.warn('Whisper response:', j);
+                alert(j.error || 'Transcription failed.');
+              } else if (j?.text) {
+                qEl.value = j.text.trim();
+                qEl.focus();
+                qEl.setSelectionRange(qEl.value.length, qEl.value.length);
+              } else {
+                console.warn('Whisper response (no text):', j);
+                alert('No text returned from transcription.');
+              }
+              setStatus('Ready');
+            } catch (e) {
+              console.error(e); setStatus('Transcription error');
+            } finally {
+              mediaStream.getTracks().forEach(t => t.stop());
+            }
+          };
+          mediaRecorder.start();
+          recording = true;
+          recordTimer = setTimeout(() => { if (recording) mediaRecorder.stop(); }, 6000);
+        } else {
+          clearTimeout(recordTimer);
+          mediaRecorder.stop();
+        }
+      } catch (e) {
+        console.error(e); setStatus('Mic unavailable');
+      }
+    });
+
+    // ===== Names modal (Create / Load / Save / Delete) =====
+    const LS_KEY = 'ttai:names:lists';
+
+    function getLists(){ try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; } }
+    function setLists(obj){ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }
+    function refreshListsUI(selected=''){
+      const lists = getLists();
+      listsSelect.innerHTML = '';
+      Object.keys(lists).sort().forEach(name => {
+        const opt = document.createElement('option'); opt.value = name; opt.textContent = name;
+        if (name === selected) opt.selected = true;
+        listsSelect.appendChild(opt);
+      });
+    }
+
+    manageNamesBtn.addEventListener('click', () => { namesModal.classList.add('show'); refreshListsUI(); });
+    closeNames.addEventListener('click', () => namesModal.classList.remove('show'));
+
+    newListBtn.addEventListener('click', () => { listNameInput.value=''; namesEditor.value=''; listNameInput.focus(); });
+    clearEditorBtn.addEventListener('click', () => { namesEditor.value=''; });
+
+    loadListBtn.addEventListener('click', () => {
+      const sel = listsSelect.value;
+      if (!sel) return;
+      const lists = getLists();
+      listNameInput.value = sel;
+      namesEditor.value = lists[sel] || '';
+    });
+
+    deleteListBtn.addEventListener('click', () => {
+      const sel = listsSelect.value;
+      if (!sel) return;
+      const lists = getLists();
+      if (!lists[sel]) return;
+      if (!confirm(`Delete list "${sel}"?`)) return;
+      delete lists[sel];
+      setLists(lists);
+      listNameInput.value = '';
+      namesEditor.value = '';
+      refreshListsUI();
+    });
+
+    saveListBtn.addEventListener('click', () => {
+      const name = (listNameInput.value || '').trim();
+      if (!name) return alert('Please enter a list name.');
+      const lists = getLists();
+      lists[name] = namesEditor.value.trim();
+      setLists(lists);
+      refreshListsUI(name);
+      alert('Saved.');
+    });
+
+    // Tap backdrop to close modal
+    namesModal.addEventListener('click', (e) => { if (e.target === namesModal) namesModal.classList.remove('show'); });
+  </script>
+</body>
+</html>
