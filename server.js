@@ -38,6 +38,7 @@ const BASE_SYSTEM_INSTRUCTIONS = [
   "Always show the weekday (spell out abbreviations), start time, end time, and any other provided fields for each entry.",
   "Order items chronologically by weekday (Monday through Sunday) and start time whenever you present multiple rows.",
   "Using a table is fine if it keeps every entry visible, but ensure each JSON row appears exactly once.",
+  "Please reflect the start and end times precisely. It makes a whole world of difference.",
   "Consult the provided title or notes for extra context when helpful, but never invent new data.",
   "If the data is insufficient to answer, explain what is missing and avoid speculation or new assumptions."
 ].join(" ");
