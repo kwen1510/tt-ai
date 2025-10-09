@@ -141,7 +141,7 @@ async function summarizeWithOpenAI({ question, collapsed }) {
         content: `Answer ONLY from this JSON.\nQuestion: ${question}\nJSON (collapsed): ${collapsed}`
       }
     ],
-    temperature: 0.2,
+    temperature: 0.0,
     max_tokens: 2048
   });
   return completion.choices?.[0]?.message?.content?.trim() || "";
